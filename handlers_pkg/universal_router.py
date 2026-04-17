@@ -7,6 +7,7 @@ from .admin_main import (
     admin_broadcast, admin_gift_manager, admin_redeem_manager
 )
 from .admin_management import admin_manager
+from .admin_advanced import admin_advanced_settings, admin_game_control
 from .admin_task_manager import admin_task_manager
 from .db_manager import (
     admin_db_manager, handle_db_add_user, handle_db_edit_user, handle_db_add_withdrawal,
@@ -64,7 +65,7 @@ def universal_handler(message):
         if text == "🏧 Withdraw":
             withdraw_handler(message)
             return
-        if text == "🎁 Gift":
+        if text == get_bonus_menu_button_label():
             gift_handler(message)
             return
         if text == "📋 Tasks":
@@ -102,6 +103,12 @@ def universal_handler(message):
             return
         if text == "👮 Admin Manager" and is_admin(user_id):
             admin_manager(message)
+            return
+        if text == "🧠 Advanced Settings" and is_admin(user_id):
+            admin_advanced_settings(message)
+            return
+        if text == "🎮 Game Control" and is_admin(user_id):
+            admin_game_control(message)
             return
         if text == "🔙 User Panel" and is_admin(user_id):
             back_user_panel(message)
@@ -679,6 +686,132 @@ def universal_handler(message):
             safe_send(message.chat.id, f"{pe('check')} Message sent to <code>{tid}</code>!")
         except Exception as e:
             safe_send(message.chat.id, f"{pe('cross')} Failed: {e}")
+        return
+
+    if state == "enter_betnext_amount":
+        data = get_state_data(user_id)
+        try:
+            bet = float(text)
+        except Exception:
+            safe_send(message.chat.id, f"{pe('cross')} Enter a valid bet amount!")
+            return
+        clear_state(user_id)
+        result = place_betnext_bet(user_id, data.get('option'), bet)
+        if not result.get('ok'):
+            safe_send(message.chat.id, f"{pe('cross')} {result.get('message')}")
+            return
+        safe_send(message.chat.id, f"{pe('check')} <b>Bet placed!</b>\n\nOption: <b>{data.get('option')}</b>\nBet: ₹{bet:.2f}\nNew Balance: ₹{float(result.get('new_balance',0)):.2f}\nRound ID: <code>{result.get('round_id')}</code>")
+        return
+
+    if state == "admin_betnext_create":
+        parts = [p.strip() for p in text.split('|')]
+        if len(parts) != 6:
+            safe_send(message.chat.id, f"{pe('cross')} Use format: <code>Option A|Option B|min|max|multiplier|hours</code>")
+            return
+        try:
+            option_a, option_b = parts[0], parts[1]
+            min_bet = float(parts[2])
+            max_bet = float(parts[3])
+            mult = float(parts[4])
+            hours = float(parts[5])
+        except Exception:
+            safe_send(message.chat.id, f"{pe('cross')} Enter valid values.")
+            return
+        clear_state(user_id)
+        end_at = (datetime.now() + timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        rid = create_betnext_round(user_id, option_a, option_b, now_str(), end_at, min_bet, max_bet, mult)
+        safe_send(message.chat.id, f"{pe('check')} Bet Next round created successfully.\n\nRound ID: <code>{rid}</code>\nOptions: <b>{option_a}</b> vs <b>{option_b}</b>\nRange: ₹{min_bet:.2f} - ₹{max_bet:.2f}\nMultiplier: {mult:.2f}x\nEnds: <code>{end_at}</code>")
+        return
+
+    if state == "admin_set_bonus_menu_title":
+        clear_state(user_id)
+        set_setting("bonus_menu_title", text[:24])
+        safe_send(message.chat.id, f"{pe('check')} Bonus menu title updated.")
+        return
+
+    if state == "admin_set_games_menu_title":
+        clear_state(user_id)
+        set_setting("games_menu_title", text[:24])
+        safe_send(message.chat.id, f"{pe('check')} Games menu title updated.")
+        return
+
+
+    if state == "admin_set_announcement_text":
+        clear_state(user_id)
+        set_setting("global_announcement_text", text[:2000])
+        safe_send(message.chat.id, f"{pe('check')} Announcement saved successfully.")
+        return
+
+    if state == "admin_set_grid_size":
+        raw = text.lower().replace(' ', '')
+        if 'x' not in raw:
+            safe_send(message.chat.id, f"{pe('cross')} Use format <code>5x5</code>")
+            return
+        try:
+            rows, cols = [int(x) for x in raw.split('x', 1)]
+        except Exception:
+            safe_send(message.chat.id, f"{pe('cross')} Use format <code>5x5</code>")
+            return
+        if rows < 2 or cols < 2 or rows > 8 or cols > 8:
+            safe_send(message.chat.id, f"{pe('cross')} Allowed range is 2x2 to 8x8")
+            return
+        clear_state(user_id)
+        set_setting('mines_grid_rows', rows)
+        set_setting('mines_grid_cols', cols)
+        safe_send(message.chat.id, f"{pe('check')} Mine grid updated to {rows}x{cols}")
+        return
+
+    if state == "admin_set_mine_range":
+        raw = text.replace(' ', '')
+        if '-' not in raw:
+            safe_send(message.chat.id, f"{pe('cross')} Use format <code>1-10</code>")
+            return
+        try:
+            mn, mx = [int(x) for x in raw.split('-', 1)]
+        except Exception:
+            safe_send(message.chat.id, f"{pe('cross')} Use format <code>1-10</code>")
+            return
+        if mn < 1 or mx < mn:
+            safe_send(message.chat.id, f"{pe('cross')} Invalid range")
+            return
+        clear_state(user_id)
+        set_setting('mines_min_count', mn)
+        set_setting('mines_max_count', mx)
+        safe_send(message.chat.id, f"{pe('check')} Mine range updated to {mn}-{mx}")
+        return
+
+    if state.startswith("admin_set_float|"):
+        key = state.split("|", 1)[1]
+        try:
+            val = float(text)
+        except Exception:
+            safe_send(message.chat.id, f"{pe('cross')} Enter valid number!")
+            return
+        clear_state(user_id)
+        set_setting(key, val)
+        safe_send(message.chat.id, f"{pe('check')} {key} updated to {val}")
+        return
+
+    if state.startswith("admin_set_int|"):
+        key = state.split("|", 1)[1]
+        try:
+            val = int(float(text))
+        except Exception:
+            safe_send(message.chat.id, f"{pe('cross')} Enter valid number!")
+            return
+        clear_state(user_id)
+        set_setting(key, val)
+        safe_send(message.chat.id, f"{pe('check')} {key} updated to {val}")
+        return
+
+    if state == "admin_set_game_style":
+        clear_state(user_id)
+        val = text.strip().lower()
+        if val not in ["web", "normal"]:
+            safe_send(message.chat.id, f"{pe('cross')} Enter <code>web</code> or <code>normal</code>.")
+            return
+        set_setting("game_style", val)
+        safe_send(message.chat.id, f"{pe('check')} Game style set to {val}.")
         return
 
     # ======= ADMIN TASK STATES =======

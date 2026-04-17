@@ -261,7 +261,7 @@ def cancel_withdraw(call):
         pass
 
 # ======================== GIFT ========================
-@bot.message_handler(func=lambda m: m.text == "🎁 Gift")
+@bot.message_handler(func=lambda m: m.text == get_bonus_menu_button_label())
 def gift_handler(message):
     user_id = message.from_user.id
     if not check_force_join(user_id):
@@ -274,6 +274,31 @@ def gift_handler(message):
     show_gift_menu(message.chat.id, user)
 
 def show_gift_menu(chat_id, user):
+    bonus_title = str(get_setting("bonus_menu_title") or "Bonus")
+    gift_title = str(get_setting("gift_menu_title") or "Gift")
+    games_title = str(get_setting("games_menu_title") or "Games")
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton(f"🎁 {gift_title}", callback_data="bonus_gifts"),
+        types.InlineKeyboardButton(f"🎮 {games_title}", callback_data="bonus_games"),
+    )
+
+    text = (
+        f"{pe('party')} <b>{bonus_title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{pe('fly_money')} <b>Balance:</b> ₹{float(user['balance'] or 0):.2f}\n"
+        f"{pe('info')} Choose a section below.\n\n"
+        f"• <b>{gift_title}</b>: claim code, create gift, daily bonus\n"
+        f"• <b>{games_title}</b>: Bet Next game, history, leaderboard\n\n"
+        f"{pe('bulb')} Admin controls rewards, limits, taxes, rounds, visibility, and results."
+    )
+    safe_send(chat_id, text, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "bonus_gifts")
+def bonus_gifts(call):
+    safe_answer(call)
+    gift_title = str(get_setting("gift_menu_title") or "Gift")
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton("🎟 Claim Gift Code", callback_data="redeem_code"),
@@ -281,22 +306,111 @@ def show_gift_menu(chat_id, user):
     )
     markup.add(types.InlineKeyboardButton("🎰 Daily Bonus", callback_data="daily_bonus"))
     safe_send(
-        chat_id,
-        f"{pe('party')} <b>Gift & Bonus Center</b> {pe('sparkle')}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"{pe('fly_money')} <b>Balance:</b> ₹{user['balance']:.2f}\n\n"
-        f"{pe('star')} <b>What can you do here?</b>\n"
-        f"  {pe('arrow')} <b>Redeem Code</b> — Claim a gift code\n"
-        f"  {pe('arrow')} <b>Create Gift</b> — Create code from balance\n"
-        f"  {pe('arrow')} <b>Daily Bonus</b> — Free daily coins!\n\n"
-        f"{pe('bulb')} <i>Share codes with friends!</i>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=markup
+        call.message.chat.id,
+        f"{pe('party')} <b>{gift_title} Section</b>\n\n"
+        f"Choose an option below.\n"
+        f"• Claim redeem code\n"
+        f"• Create gift code\n"
+        f"• Daily bonus",
+        reply_markup=markup,
     )
 
+@bot.callback_query_handler(func=lambda call: call.data == "bonus_games")
+def bonus_games(call):
+    safe_answer(call)
+    if not get_setting('games_enabled') or not get_setting('bet_next_enabled'):
+        safe_send(call.message.chat.id, f"{pe('no_entry')} Games are disabled by admin.")
+        return
+    round_row = get_active_betnext_round()
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    if round_row and bool(get_setting('bet_next_visible')):
+        option_a = str(round_row['option_a'])
+        option_b = str(round_row['option_b'])
+        markup.add(
+            types.InlineKeyboardButton(f"🦁 {option_a}", callback_data=f"betnext_pick|{round_row['id']}|{option_a}"),
+            types.InlineKeyboardButton(f"🐯 {option_b}", callback_data=f"betnext_pick|{round_row['id']}|{option_b}"),
+        )
+        markup.add(types.InlineKeyboardButton("📊 Round Stats", callback_data=f"betnext_stats|{round_row['id']}"))
+    markup.add(
+        types.InlineKeyboardButton("🕘 Game History", callback_data="games_history"),
+        types.InlineKeyboardButton("🏆 Leaderboard", callback_data="betnext_leaderboard"),
+    )
+    if not round_row:
+        safe_send(call.message.chat.id, f"{pe('game')} <b>Games Section</b>\n\nNo active Bet Next round right now.\nPlease wait for the admin to open a new round.", reply_markup=markup)
+        return
+    totals = get_betnext_round_totals(round_row['id'])
+    a = totals.get(str(round_row['option_a']), {'amount': 0, 'count': 0})
+    b = totals.get(str(round_row['option_b']), {'amount': 0, 'count': 0})
+    safe_send(
+        call.message.chat.id,
+        f"{pe('game')} <b>Bet Next</b>\n\n"
+        f"Round ID: <code>{round_row['id']}</code>\n"
+        f"Options: <b>{round_row['option_a']}</b> vs <b>{round_row['option_b']}</b>\n"
+        f"Bet Range: ₹{float(round_row['min_bet'] or 0):.2f} - ₹{float(round_row['max_bet'] or 0):.2f}\n"
+        f"Reward Multiplier: <b>{float(round_row['reward_multiplier'] or 0):.2f}x</b>\n"
+        f"Ends: <code>{round_row['end_at']}</code>\n\n"
+        f"{round_row['option_a']}: ₹{a['amount']:.2f} from {a['count']} bet(s)\n"
+        f"{round_row['option_b']}: ₹{b['amount']:.2f} from {b['count']} bet(s)",
+        reply_markup=markup,
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("betnext_pick|"))
+def betnext_pick(call):
+    safe_answer(call)
+    _, rid, option_name = call.data.split('|', 2)
+    round_row = get_betnext_round(int(rid))
+    if not round_row or str(round_row['status']) != 'active':
+        safe_send(call.message.chat.id, f"{pe('warning')} This round is no longer active.")
+        return
+    set_state(call.from_user.id, 'enter_betnext_amount', {'round_id': int(rid), 'option': option_name})
+    safe_send(call.message.chat.id, f"{pe('pencil')} Enter your bet amount for <b>{option_name}</b>.\nRange: ₹{float(round_row['min_bet'] or 0):.2f} - ₹{float(round_row['max_bet'] or 0):.2f}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("betnext_stats|"))
+def betnext_stats(call):
+    safe_answer(call)
+    rid = int(call.data.split('|', 1)[1])
+    round_row = get_betnext_round(rid)
+    if not round_row:
+        safe_send(call.message.chat.id, f"{pe('cross')} Round not found.")
+        return
+    totals = get_betnext_round_totals(rid)
+    a = totals.get(str(round_row['option_a']), {'amount': 0, 'count': 0})
+    b = totals.get(str(round_row['option_b']), {'amount': 0, 'count': 0})
+    safe_send(call.message.chat.id, f"{pe('chart')} <b>Bet Next Stats</b>\n\n{round_row['option_a']}: ₹{a['amount']:.2f} | {a['count']} bet(s)\n{round_row['option_b']}: ₹{b['amount']:.2f} | {b['count']} bet(s)\nStatus: <b>{round_row['status']}</b>\nEnd: <code>{round_row['end_at']}</code>")
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_leaderboard")
+def betnext_leaderboard(call):
+    safe_answer(call)
+    rows = get_betnext_leaderboard(10)
+    if not rows:
+        safe_send(call.message.chat.id, f"{pe('info')} No Bet Next winners yet.")
+        return
+    lines = []
+    for i, row in enumerate(rows, 1):
+        user = get_user(int(row['user_id']))
+        name = (user['first_name'] if user else f"User {row['user_id']}")
+        lines.append(f"{i}. <b>{name}</b> — ₹{float(row['total_win'] or 0):.2f} | Wins: {int(row['wins'] or 0)}")
+    safe_send(call.message.chat.id, f"{pe('trophy')} <b>Bet Next Leaderboard</b>\n\n" + "\n".join(lines))
+
+@bot.callback_query_handler(func=lambda call: call.data == "games_history")
+def games_history(call):
+    safe_answer(call)
+    rows = get_user_betnext_history(call.from_user.id, 10)
+    if not rows:
+        safe_send(call.message.chat.id, f"{pe('info')} No game history yet.")
+        return
+    lines = []
+    for row in rows:
+        lines.append(f"• Round {row['round_id']} | {row['chosen_option']} | ₹{float(row['amount'] or 0):.2f} → ₹{float(row['reward_amount'] or 0):.2f} | {row['status']}")
+    safe_send(call.message.chat.id, f"{pe('game')} <b>Your Bet Next History</b>\n\n" + "\n".join(lines))
 @bot.callback_query_handler(func=lambda call: call.data == "redeem_code")
 def redeem_code_cb(call):
     user_id = call.from_user.id
+    user = get_user(user_id)
+    allowed, reason = can_claim_feature(user, "redeem_code")
+    if not allowed:
+        safe_answer(call, f"❌ {reason}", True)
+        return
     safe_answer(call)
     set_state(user_id, "enter_gift_code")
     safe_send(
@@ -335,12 +449,19 @@ def daily_bonus_cb(call):
     if not user:
         safe_answer(call, "Error!", True)
         return
+    maybe_apply_inactivity_deduction(user_id)
+    user = get_user(user_id)
     today = datetime.now().strftime("%Y-%m-%d")
     if user["last_daily"] == today:
         safe_answer(call, "❌ Already claimed today! Come back tomorrow.", True)
         return
-    bonus = get_setting("daily_bonus")
-    update_user(user_id, balance=user["balance"] + bonus, total_earned=user["total_earned"] + bonus, last_daily=today)
+    allowed, reason = can_claim_feature(user, "daily_bonus")
+    if not allowed:
+        safe_answer(call, f"❌ {reason}", True)
+        return
+    bonus = get_random_daily_bonus()
+    update_user(user_id, balance=float(user["balance"] or 0) + bonus, bonus_balance=float(user["bonus_balance"] or 0) + bonus, total_earned=float(user["total_earned"] or 0) + bonus, last_daily=today, last_active_at=now_str())
+    mark_user_active(user_id, 'daily_bonus', bonus, 'daily bonus claimed')
     safe_answer(call, f"🎉 +₹{bonus} Daily Bonus!")
     safe_send(
         call.message.chat.id,

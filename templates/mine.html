@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mine Game</title>
+<style>
+:root{--bg:#0b1220;--panel:#111b2e;--panel2:#17233a;--border:#243450;--text:#fff;--muted:#8aa0bf;--accent:#29d17d;--danger:#ff5b5b;--warn:#f1c40f}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#08101b,#0f1728);color:var(--text);font-family:Segoe UI,system-ui,sans-serif}.app{max-width:520px;margin:0 auto;padding:14px 14px 110px}.card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 10px 22px rgba(0,0,0,.18)}.row{display:flex;gap:10px}.row>*{flex:1}.top{display:flex;justify-content:space-between;align-items:center}.title{font-size:1.1rem;font-weight:800}.muted{color:var(--muted);font-size:.86rem}.pill{background:var(--panel2);border:1px solid var(--border);padding:8px 10px;border-radius:999px;font-size:.85rem}.balance-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.balance-box{background:var(--panel2);border:1px solid var(--border);padding:10px;border-radius:14px}.balance-box strong{display:block;font-size:1rem;color:var(--accent)}label{display:block;font-size:.83rem;color:var(--muted);margin-bottom:6px}input,select,button{width:100%;border-radius:12px;border:1px solid var(--border);padding:12px;background:var(--panel2);color:var(--text);font:inherit}button{cursor:pointer;font-weight:700}.btn-primary{background:linear-gradient(135deg,#1fb86c,#2ed67f);color:#031109;border:none}.btn-danger{background:linear-gradient(135deg,#c0392b,#ff5b5b);border:none}.btn-soft{background:#1a2842}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{background:var(--panel2);padding:12px;border-radius:14px;border:1px solid var(--border)}.metric .v{font-size:1.1rem;font-weight:900}.metric .l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}.announce{padding:12px;border-radius:14px;background:rgba(241,196,15,.12);border:1px solid rgba(241,196,15,.28);margin-bottom:12px}.grid{display:grid;gap:8px;margin-top:10px}.tile{aspect-ratio:1;border-radius:12px;background:linear-gradient(180deg,#1a2a45,#132038);border:1px solid #2b4266;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;user-select:none;transition:.16s transform,.16s box-shadow}.tile:active{transform:scale(.96)}.tile.hidden::after{content:'?';opacity:.17}.tile.gem{background:linear-gradient(180deg,#0c4d2a,#0b6d39);border-color:#25d67d;box-shadow:0 0 18px rgba(37,214,125,.28)}.tile.mine{background:linear-gradient(180deg,#521212,#7d1919);border-color:#ff5b5b;box-shadow:0 0 18px rgba(255,91,91,.25)}.tile.revealed-soft{opacity:.55}.hist-item{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}.hist-item:last-child{border-bottom:none}.status{font-weight:800}.win{color:var(--accent)}.lose{color:var(--danger)}.bottom-bar{position:fixed;left:0;right:0;bottom:0;background:rgba(8,16,27,.96);backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:10px 14px}.bottom-wrap{max-width:520px;margin:0 auto;display:flex;gap:10px}.hidden{display:none}.small{font-size:.78rem}.risk{height:10px;border-radius:999px;background:#1e2a40;overflow:hidden;margin-top:8px}.risk>span{display:block;height:100%;background:linear-gradient(90deg,#1fb86c,#f1c40f,#ff5b5b)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="card top">
+    <div>
+      <div class="title">💣 Mine Game</div>
+      <div class="muted">Admin-controlled grid, multipliers, limits and history</div>
+    </div>
+    <div class="pill" id="uidBadge">UID: {{ uid }}</div>
+  </div>
+
+  <div id="announcement" class="announce hidden"></div>
+
+  <div class="card">
+    <div class="top"><div class="title">Wallets</div><button class="pill" id="refreshWallet" style="width:auto">Refresh</button></div>
+    <div class="balance-list" id="balances"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Bet Amount</label>
+        <input id="betInput" type="number" min="1" step="0.01" value="1">
+      </div>
+      <div>
+        <label>Mines</label>
+        <input id="mineInput" type="number" min="1" step="1" value="3">
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div>
+        <label>Balance Source</label>
+        <select id="balanceSource"></select>
+      </div>
+      <div>
+        <label>Auto Cashout</label>
+        <input id="autoCashoutInput" type="number" min="0" step="0.01" value="0">
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn-primary" id="startBtn">Start Game</button>
+      <button class="btn-soft" id="statsBtn">Stats</button>
+    </div>
+    <div class="muted small" id="configSummary" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <div class="metrics">
+      <div class="metric"><div class="v" id="multiplierVal">1.00x</div><div class="l">Multiplier</div></div>
+      <div class="metric"><div class="v" id="payoutVal">₹0.00</div><div class="l">Payout</div></div>
+      <div class="metric"><div class="v" id="safeVal">0</div><div class="l">Safe Picks</div></div>
+    </div>
+    <div class="risk"><span id="riskBar" style="width:0%"></span></div>
+    <div class="muted small" id="riskText">Risk indicator waiting for game...</div>
+    <div id="gameGrid" class="grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="title">Recent History</div>
+    <div id="historyWrap" class="muted" style="margin-top:8px">Loading...</div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <div class="bottom-wrap">
+    <button class="btn-soft" id="cashoutBtn">Cash Out</button>
+    <button class="btn-danger" id="resetBtn">Reveal Mines</button>
+  </div>
+</div>
+
+<script>
+const uid = Number('{{ uid }}' || 0);
+let config = null;
+let me = null;
+let game = null;
+const el = (id) => document.getElementById(id);
+const money = (n) => `₹${Number(n || 0).toFixed(2)}`;
+const srcLabel = {balance:'Main', bonus_balance:'Bonus', referral_balance:'Referral', gift_balance:'Gift'};
+async function getJSON(url, opts) { const res = await fetch(url, opts); const data = await res.json(); if (!res.ok || data.ok === false) throw new Error(data.error || data.message || 'Request failed'); return data; }
+function toast(msg){ alert(msg); }
+function renderBalances(){ const wrap = el('balances'); wrap.innerHTML = ''; if (!me) return; for (const [key, val] of Object.entries(me.balances || {})) { const d = document.createElement('div'); d.className = 'balance-box'; d.innerHTML = `<div class="muted">${srcLabel[key] || key}</div><strong>${money(val)}</strong>`; wrap.appendChild(d); } const sel = el('balanceSource'); const active = sel.value; sel.innerHTML = ''; (config.allowed_balance_sources || ['balance']).forEach(k => { const opt = document.createElement('option'); opt.value = k; opt.textContent = `${srcLabel[k] || k} (${money(me.balances[k] || 0)})`; sel.appendChild(opt); }); if ([...sel.options].some(o => o.value === active)) sel.value = active; }
+function renderConfig(){ if (!config) return; el('mineInput').min = config.mines_min_count; el('mineInput').max = config.mines_max_count; el('betInput').min = config.mines_min_bet; el('betInput').max = config.mines_max_bet; el('autoCashoutInput').value = config.mines_auto_cashout_default || 0; el('configSummary').textContent = `Grid ${config.mines_grid_rows}x${config.mines_grid_cols} • Mine Range ${config.mines_min_count}-${config.mines_max_count} • Bet ${money(config.mines_min_bet)}-${money(config.mines_max_bet)} • House Edge ${Number(config.mines_house_edge).toFixed(2)}%`; const total = config.mines_grid_rows * config.mines_grid_cols; el('gameGrid').style.gridTemplateColumns = `repeat(${config.mines_grid_cols}, 1fr)`; el('gameGrid').innerHTML = ''; for (let i = 0; i < total; i++) { const b = document.createElement('button'); b.className = 'tile hidden'; b.dataset.idx = i; b.addEventListener('click', () => revealTile(i)); el('gameGrid').appendChild(b); } }
+function updateStats({multiplier=1,payout=0,safe=0,risk=0}={}){ el('multiplierVal').textContent = `${Number(multiplier).toFixed(2)}x`; el('payoutVal').textContent = money(payout); el('safeVal').textContent = String(safe); el('riskBar').style.width = `${Math.max(0, Math.min(100, risk))}%`; el('riskText').textContent = game ? `Risk ${Number(risk).toFixed(2)}% • Balance source: ${srcLabel[game.balance_source] || game.balance_source}` : 'Risk indicator waiting for game...'; }
+async function loadConfig(){ const data = await getJSON('/api/mine/config'); config = data.config; if (data.announcement) { el('announcement').classList.remove('hidden'); el('announcement').textContent = data.announcement; } renderConfig(); }
+async function loadMe(){ me = await getJSON(`/api/mine/me?uid=${uid}`); renderBalances(); }
+async function loadHistory(){ const data = await getJSON(`/api/mine/history/${uid}`); const wrap = el('historyWrap'); if (!data.items.length) { wrap.innerHTML = '<div class="muted">No games yet.</div>'; return; } wrap.innerHTML = data.items.map(item => { const meta = item.round_meta || {}; return `<div class="hist-item"><div><span class="status ${item.outcome==='win'?'win':'lose'}">${item.outcome.toUpperCase()}</span> • Bet ${money(item.bet_amount)} • Reward ${money(item.reward_amount)}</div><div class="muted small">${item.created_at} ${meta.safe_picks ? '• Safe picks '+meta.safe_picks : ''}</div></div>`; }).join(''); }
+async function startGame(){ try { const payload = {uid, bet: Number(el('betInput').value), mines: Number(el('mineInput').value), balance_source: el('balanceSource').value, auto_cashout_multiplier: Number(el('autoCashoutInput').value || 0)}; const data = await getJSON('/api/mine/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}); game = {id: data.game_id, balance_source: payload.balance_source, over: false}; renderConfig(); updateStats({}); toast('Game started'); me = { ...me, balances: data.balances }; renderBalances(); } catch (e) { toast(e.message); } }
+function markTile(idx, type, icon){ const node = [...document.querySelectorAll('.tile')].find(x => Number(x.dataset.idx) === idx); if (!node) return; node.className = `tile ${type}`; node.textContent = icon; }
+async function revealTile(idx){ if (!game || game.over) return; try { const data = await getJSON('/api/mine/reveal', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uid, game_id: game.id, tile: idx})}); if (data.result === 'mine') { markTile(idx, 'mine', '💣'); (data.mines || []).forEach(m => { if (m !== idx) markTile(m, 'mine revealed-soft', '💣'); }); game.over = true; updateStats({risk: 100}); toast('Boom! You hit a mine.'); } else { markTile(idx, 'gem', '💎'); updateStats({multiplier: data.multiplier, payout: data.payout, safe: data.revealed_count, risk: data.risk || 0}); if (data.auto_cashed_out) { game.over = true; (data.mines || []).forEach(m => markTile(m, 'mine revealed-soft', '💣')); toast(`Auto cashout success: ${money(data.payout)}`); } } me = { ...me, balances: data.balances }; renderBalances(); await loadHistory(); } catch (e) { toast(e.message); } }
+async function cashOut(){ if (!game || game.over) return; if (config.mines_cashout_confirmation && !confirm('Cash out current winnings?')) return; try { const data = await getJSON('/api/mine/cashout', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uid, game_id: game.id})}); game.over = true; me = { ...me, balances: data.balances }; renderBalances(); await loadHistory(); toast(`Cashed out ${money(data.payout)}`); } catch (e) { toast(e.message); } }
+async function loadStats(){ try { const data = await getJSON(`/api/mine/stats/${uid}`); const s = data.user_stats || {}; toast(`Games: ${s.games || 0}\nTotal Bet: ${money(s.total_bet || 0)}\nTotal Reward: ${money(s.total_reward || 0)}\nTop Heatmap Tiles: ${(data.heatmap || []).slice(0,5).map(x => x.tile_index).join(', ') || 'none'}`); } catch (e) { toast(e.message); } }
+document.addEventListener('DOMContentLoaded', async () => { if (!uid) { toast('Missing uid in URL'); return; } try { await loadConfig(); await loadMe(); await loadHistory(); } catch (e) { toast(e.message); } el('startBtn').addEventListener('click', startGame); el('cashoutBtn').addEventListener('click', cashOut); el('resetBtn').addEventListener('click', () => location.reload()); el('statsBtn').addEventListener('click', loadStats); el('refreshWallet').addEventListener('click', async()=>{ await loadMe(); await loadHistory(); }); });
+</script>
+</body>
+</html>

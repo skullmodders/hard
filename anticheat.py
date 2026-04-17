@@ -155,8 +155,9 @@ HTML_SUCCESS = """
         <h1>Verification Complete</h1>
         <p>Your session has been verified successfully.</p>
         <code>User ID: {{ user_id }}</code>
-        <p class="muted">Return to Telegram and tap <b>I Verified</b>.</p>
-        <a class="btn" href="https://t.me/{{ bot_username }}">Return to Telegram</a>
+        <p class="muted">You will be redirected back to Telegram automatically. The manual verify button in the bot is still available as backup.</p>
+        <a class="btn" href="https://t.me/{{ bot_username }}?start=verified_{{ user_id }}">Open Bot</a>
+        <script>setTimeout(function(){ window.location.href = "https://t.me/{{ bot_username }}?start=verified_{{ user_id }}"; }, 1200);</script>
     </div>
 </body>
 </html>

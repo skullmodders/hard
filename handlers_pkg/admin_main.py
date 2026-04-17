@@ -596,6 +596,9 @@ def show_settings(chat_id):
     gf_en = get_setting("gift_enabled")
     mn = get_setting("bot_maintenance")
     tk_en = get_setting("tasks_enabled")
+    ref_sys = get_setting("referral_system_enabled")
+    ipvf = get_setting("ip_verification_enabled")
+    games_en = get_setting("games_enabled")
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton(f"💰 Per Refer: ₹{pr}", callback_data="s_per_refer"),
@@ -622,6 +625,50 @@ def show_settings(chat_id):
             f"{'🔴 Maintenance ON' if mn else '🟢 Maintenance OFF'}",
             callback_data="tog_maintenance"
         ),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"{'🟢' if ref_sys else '🔴'} Referral System", callback_data="tog_ref_sys"),
+        types.InlineKeyboardButton(f"{'🟢' if ipvf else '🔴'} IP Verify", callback_data="tog_ip_verify"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"{'🟢' if games_en else '🔴'} Games", callback_data="tog_games"),
+        types.InlineKeyboardButton(f"🎮 Bet Next: {'ON' if get_setting('bet_next_enabled') else 'OFF'}", callback_data="tog_bet_next"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"BetNext Min ₹{get_setting('bet_next_min_bet')}", callback_data="s_betnext_min"),
+        types.InlineKeyboardButton(f"BetNext Max ₹{get_setting('bet_next_max_bet')}", callback_data="s_betnext_max"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"BetNext {get_setting('bet_next_default_multiplier')}x", callback_data="s_betnext_mult"),
+        types.InlineKeyboardButton(f"BetNext GST {get_setting('bet_next_gst_percent')}%", callback_data="s_betnext_gst"),
+    )
+    markup.add(
+        types.InlineKeyboardButton("🎯 Bet Next Panel", callback_data="betnext_panel"),
+        types.InlineKeyboardButton("📜 Game Logs", callback_data="betnext_logs"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"L1 ₹{get_setting('referral_level_1_reward')}", callback_data="s_ref_l1"),
+        types.InlineKeyboardButton(f"L2 ₹{get_setting('referral_level_2_reward')}", callback_data="s_ref_l2"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"L3 ₹{get_setting('referral_level_3_reward')}", callback_data="s_ref_l3"),
+        types.InlineKeyboardButton(f"Mode: {get_setting('referral_reward_mode')}", callback_data="tog_ref_mode"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"Inactivity {get_setting('inactivity_deduction_percent')}%", callback_data="s_inactive_pct"),
+        types.InlineKeyboardButton(f"Inactivity Days {get_setting('inactivity_days')}", callback_data="s_inactive_days"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"Bonus Tax {get_setting('withdraw_bonus_tax_percent')}%", callback_data="s_bonus_tax"),
+        types.InlineKeyboardButton(f"UPI GST {get_setting('upi_gst_percent')}%", callback_data="s_upi_gst"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"Daily MinRefs {get_setting('min_refs_for_daily_bonus')}", callback_data="s_daily_ref_req"),
+        types.InlineKeyboardButton(f"Code MinRefs {get_setting('min_refs_for_redeem_code')}", callback_data="s_code_ref_req"),
+    )
+    markup.add(
+        types.InlineKeyboardButton(f"🎁 Menu: {get_setting('bonus_menu_title')}", callback_data="s_bonus_menu_title"),
+        types.InlineKeyboardButton(f"🎮 Games: {get_setting('games_menu_title')}", callback_data="s_games_menu_title"),
     )
     markup.add(
         types.InlineKeyboardButton("🖼 Welcome Image", callback_data="s_welcome_img"),
@@ -753,6 +800,210 @@ def tog_maintenance(call):
     set_setting("bot_maintenance", not cur)
     safe_answer(call, f"Maintenance {'ON' if not cur else 'OFF'}!")
     show_settings(call.message.chat.id)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "tog_ref_sys")
+def tog_ref_sys(call):
+    if not is_admin(call.from_user.id): return
+    cur = bool(get_setting("referral_system_enabled"))
+    set_setting("referral_system_enabled", not cur)
+    safe_answer(call, f"Referral system {'enabled' if not cur else 'disabled'}")
+    show_settings(call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "tog_ip_verify")
+def tog_ip_verify(call):
+    if not is_admin(call.from_user.id): return
+    cur = bool(get_setting("ip_verification_enabled"))
+    set_setting("ip_verification_enabled", not cur)
+    safe_answer(call, f"IP verification {'enabled' if not cur else 'disabled'}")
+    show_settings(call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "tog_games")
+def tog_games(call):
+    if not is_admin(call.from_user.id): return
+    cur = bool(get_setting("games_enabled"))
+    set_setting("games_enabled", not cur)
+    safe_answer(call, f"Games {'enabled' if not cur else 'disabled'}")
+    show_settings(call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "tog_ref_mode")
+def tog_ref_mode(call):
+    if not is_admin(call.from_user.id): return
+    cur = str(get_setting("referral_reward_mode") or "fixed").lower()
+    set_setting("referral_reward_mode", "percent" if cur == "fixed" else "fixed")
+    safe_answer(call, "Referral reward mode updated")
+    show_settings(call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_ref_l1")
+def s_ref_l1(call):
+    settings_ask(call, "admin_set_float|referral_level_1_reward", f"{pe('pencil')} Enter Level 1 reward amount:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_ref_l2")
+def s_ref_l2(call):
+    settings_ask(call, "admin_set_float|referral_level_2_reward", f"{pe('pencil')} Enter Level 2 reward amount:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_ref_l3")
+def s_ref_l3(call):
+    settings_ask(call, "admin_set_float|referral_level_3_reward", f"{pe('pencil')} Enter Level 3 reward amount:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_inactive_pct")
+def s_inactive_pct(call):
+    settings_ask(call, "admin_set_float|inactivity_deduction_percent", f"{pe('pencil')} Enter inactivity deduction percentage:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_inactive_days")
+def s_inactive_days(call):
+    settings_ask(call, "admin_set_int|inactivity_days", f"{pe('pencil')} Enter inactivity days threshold:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_bonus_tax")
+def s_bonus_tax(call):
+    settings_ask(call, "admin_set_float|withdraw_bonus_tax_percent", f"{pe('pencil')} Enter bonus-only withdrawal tax percentage:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_upi_gst")
+def s_upi_gst(call):
+    settings_ask(call, "admin_set_float|upi_gst_percent", f"{pe('pencil')} Enter UPI GST percentage:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_daily_ref_req")
+def s_daily_ref_req(call):
+    settings_ask(call, "admin_set_int|min_refs_for_daily_bonus", f"{pe('pencil')} Enter minimum direct referrals needed for daily bonus:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_code_ref_req")
+def s_code_ref_req(call):
+    settings_ask(call, "admin_set_int|min_refs_for_redeem_code", f"{pe('pencil')} Enter minimum direct referrals needed for redeem code claim:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_bonus_menu_title")
+def s_bonus_menu_title(call):
+    settings_ask(call, "admin_set_bonus_menu_title", f"{pe('pencil')} Enter bonus menu title text:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_games_menu_title")
+def s_games_menu_title(call):
+    settings_ask(call, "admin_set_games_menu_title", f"{pe('pencil')} Enter games menu title text:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_game_style")
+def s_game_style(call):
+    settings_ask(call, "admin_set_game_style", f"{pe('pencil')} Enter game style: <code>web</code> or <code>normal</code>")
+
+@bot.callback_query_handler(func=lambda call: call.data == "tog_bet_next")
+def tog_bet_next(call):
+    if not is_admin(call.from_user.id): return
+    cur = bool(get_setting("bet_next_enabled"))
+    set_setting("bet_next_enabled", not cur)
+    safe_answer(call, f"Bet Next {'enabled' if not cur else 'disabled'}")
+    show_settings(call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_betnext_min")
+def s_betnext_min(call):
+    settings_ask(call, "admin_set_float|bet_next_min_bet", f"{pe('pencil')} Enter Bet Next minimum bet amount:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_betnext_max")
+def s_betnext_max(call):
+    settings_ask(call, "admin_set_float|bet_next_max_bet", f"{pe('pencil')} Enter Bet Next maximum bet amount:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_betnext_mult")
+def s_betnext_mult(call):
+    settings_ask(call, "admin_set_float|bet_next_default_multiplier", f"{pe('pencil')} Enter Bet Next reward multiplier:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "s_betnext_gst")
+def s_betnext_gst(call):
+    settings_ask(call, "admin_set_float|bet_next_gst_percent", f"{pe('pencil')} Enter Bet Next GST percentage:")
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_panel")
+def betnext_panel(call):
+    if not is_admin(call.from_user.id): return
+    safe_answer(call)
+    active = get_active_betnext_round()
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("➕ Create Round", callback_data="betnext_create_round"),
+        types.InlineKeyboardButton("🏁 Settle Round", callback_data="betnext_settle_round"),
+    )
+    markup.add(
+        types.InlineKeyboardButton("❌ Cancel + Refund", callback_data="betnext_cancel_round"),
+        types.InlineKeyboardButton("📊 View Round Stats", callback_data="betnext_admin_stats"),
+    )
+    text = f"{pe('game')} <b>Bet Next Admin Panel</b>\n\n"
+    if active:
+        totals = get_betnext_round_totals(active['id'])
+        a = totals.get(str(active['option_a']), {'amount':0,'count':0})
+        b = totals.get(str(active['option_b']), {'amount':0,'count':0})
+        text += (
+            f"Active Round: <code>{active['id']}</code>\n"
+            f"Options: <b>{active['option_a']}</b> vs <b>{active['option_b']}</b>\n"
+            f"Range: ₹{float(active['min_bet'] or 0):.2f} - ₹{float(active['max_bet'] or 0):.2f}\n"
+            f"Multiplier: {float(active['reward_multiplier'] or 0):.2f}x\n"
+            f"{active['option_a']}: ₹{a['amount']:.2f} / {a['count']} bets\n"
+            f"{active['option_b']}: ₹{b['amount']:.2f} / {b['count']} bets\n"
+            f"Ends: <code>{active['end_at']}</code>"
+        )
+    else:
+        text += "No active round right now."
+    safe_send(call.message.chat.id, text, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_create_round")
+def betnext_create_round(call):
+    if not is_admin(call.from_user.id): return
+    safe_answer(call)
+    set_state(call.from_user.id, "admin_betnext_create")
+    safe_send(call.message.chat.id, f"{pe('pencil')} Send round details in this format:\n<code>Option A|Option B|min|max|multiplier|hours</code>\nExample: <code>Lion|Tiger|10|100|1.8|2</code>")
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_settle_round")
+def betnext_settle_round(call):
+    if not is_admin(call.from_user.id): return
+    active = get_active_betnext_round()
+    if not active:
+        safe_answer(call, "No active round", True)
+        return
+    safe_answer(call)
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton(str(active['option_a']), callback_data=f"betnext_pick_winner|{active['id']}|{active['option_a']}"),
+        types.InlineKeyboardButton(str(active['option_b']), callback_data=f"betnext_pick_winner|{active['id']}|{active['option_b']}"),
+    )
+    safe_send(call.message.chat.id, f"{pe('trophy')} Select the winning option for round <code>{active['id']}</code>:", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("betnext_pick_winner|"))
+def betnext_pick_winner(call):
+    if not is_admin(call.from_user.id): return
+    _, rid, option_name = call.data.split('|', 2)
+    result = settle_betnext_round(int(rid), option_name, call.from_user.id)
+    safe_answer(call, result.get('message','Done'))
+    safe_send(call.message.chat.id, f"{pe('check')} {result.get('message')}\nWinners: {result.get('winners',0)}\nPaid: ₹{float(result.get('paid_total',0)):.2f}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_cancel_round")
+def betnext_cancel_round(call):
+    if not is_admin(call.from_user.id): return
+    active = get_active_betnext_round()
+    if not active:
+        safe_answer(call, "No active round", True)
+        return
+    result = cancel_betnext_round(int(active['id']), call.from_user.id, 'Cancelled by admin')
+    safe_answer(call, result.get('message','Done'))
+    safe_send(call.message.chat.id, f"{pe('check')} {result.get('message')} Refund: ₹{float(result.get('refunded',0)):.2f}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_admin_stats")
+def betnext_admin_stats(call):
+    if not is_admin(call.from_user.id): return
+    active = get_active_betnext_round()
+    if not active:
+        safe_answer(call, "No active round", True)
+        return
+    totals = get_betnext_round_totals(int(active['id']))
+    a = totals.get(str(active['option_a']), {'amount':0,'count':0})
+    b = totals.get(str(active['option_b']), {'amount':0,'count':0})
+    safe_answer(call)
+    safe_send(call.message.chat.id, f"{pe('chart')} <b>Active Bet Next Stats</b>\n\nRound: <code>{active['id']}</code>\n{active['option_a']}: ₹{a['amount']:.2f} / {a['count']} bets\n{active['option_b']}: ₹{b['amount']:.2f} / {b['count']} bets\nMultiplier: {float(active['reward_multiplier'] or 0):.2f}x\nGST: {float(active['gst_percent'] or 0):.2f}%")
+
+@bot.callback_query_handler(func=lambda call: call.data == "betnext_logs")
+def betnext_logs(call):
+    if not is_admin(call.from_user.id): return
+    safe_answer(call)
+    rows = db_execute("SELECT * FROM bet_next_rounds ORDER BY id DESC LIMIT 10", fetch=True) or []
+    if not rows:
+        safe_send(call.message.chat.id, f"{pe('info')} No Bet Next logs yet.")
+        return
+    lines = []
+    for row in rows:
+        lines.append(f"Round {row['id']} | {row['option_a']} vs {row['option_b']} | {row['status']} | winner: {row['winning_option'] or '-'}")
+    safe_send(call.message.chat.id, f"{pe('list')} <b>Bet Next Logs</b>\n\n" + "\n".join(lines))
 
 @bot.callback_query_handler(func=lambda call: call.data == "s_reset_all")
 def s_reset_all(call):

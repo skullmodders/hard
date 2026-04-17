@@ -6,7 +6,7 @@ import time
 import random
 import string
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import csv
 import io
@@ -33,10 +33,18 @@ DEFAULT_SETTINGS = {
     "min_withdraw": 5,
     "welcome_bonus": 0.5,
     "daily_bonus": 0.5,
+    "daily_bonus_random_enabled": False,
+    "daily_bonus_random_min": 0.2,
+    "daily_bonus_random_max": 1.0,
+    "min_refs_for_daily_bonus": 1,
+    "min_refs_for_redeem_code": 2,
     "max_withdraw_per_day": 100,
     "withdraw_enabled": True,
     "refer_enabled": True,
     "gift_enabled": True,
+    "bonus_menu_title": "Bonus",
+    "gift_menu_title": "Gift",
+    "games_menu_title": "Games",
     "bot_maintenance": False,
     "welcome_image": WELCOME_IMAGE,
     "withdraw_image": WITHDRAWAL_IMAGE,
@@ -49,7 +57,95 @@ DEFAULT_SETTINGS = {
     "redeem_min_withdraw": 1,
     "redeem_multiple_of": 1,
     "redeem_gst_cut": 3,
+    "referral_system_enabled": True,
+    "referral_level_1_enabled": True,
+    "referral_level_1_reward": 2.0,
+    "referral_level_2_enabled": True,
+    "referral_level_2_reward": 1.0,
+    "referral_level_3_enabled": True,
+    "referral_level_3_reward": 0.5,
+    "referral_reward_mode": "fixed",
+    "referral_level_1_percent": 0,
+    "referral_level_2_percent": 0,
+    "referral_level_3_percent": 0,
+    "referral_require_verification": True,
+    "referral_require_force_join": True,
+    "inactivity_deduction_enabled": True,
+    "inactivity_deduction_percent": 10,
+    "inactivity_days": 2,
+    "inactivity_no_referrals": True,
+    "inactivity_no_activity": True,
+    "withdraw_bonus_tax_enabled": True,
+    "withdraw_bonus_tax_percent": 70,
+    "withdraw_bonus_tax_apply_on_upi": True,
+    "withdraw_bonus_tax_apply_on_redeem": True,
+    "withdraw_taxable_balance_types": ["bonus_balance"],
+    "upi_gst_enabled": False,
+    "upi_gst_percent": 0,
+    "ip_verification_enabled": True,
+    "games_enabled": True,
+    "game_style": "web",
+    "games_show_history": True,
+    "games_section_visible": True,
+    "game_coming_soon_text": "New games coming soon",
+    "mines_game_enabled": True,
+    "mines_game_mode": "web",
+    "mines_win_ratio": 35,
+    "mines_reward_multiplier": 1.8,
+    "mines_loss_multiplier": 1.0,
+    "mines_min_bet": 1,
+    "mines_max_bet": 50,
+    "mines_cooldown_seconds": 15,
+    "mines_force_result": "auto",
+    "mines_daily_limit": 50,
+    "mines_max_winnings_per_round": 100,
+    "bet_next_enabled": True,
+    "bet_next_visible": True,
+    "bet_next_auto_reward": True,
+    "bet_next_min_bet": 1,
+    "bet_next_max_bet": 500,
+    "bet_next_default_multiplier": 1.8,
+    "bet_next_gst_enabled": False,
+    "bet_next_gst_percent": 0,
+    "bet_next_cooldown_minutes": 0,
+    "bet_next_daily_user_limit": 20,
+    "global_announcement_text": "",
+    "mines_grid_rows": 5,
+    "mines_grid_cols": 5,
+    "mines_min_count": 1,
+    "mines_max_count": 10,
+    "mines_allow_custom_mines": True,
+    "mines_fixed_mode_enabled": False,
+    "mines_fixed_mine_count": 3,
+    "mines_force_safe_first_tile": True,
+    "mines_base_multiplier": 1.12,
+    "mines_progressive_step": 0.17,
+    "mines_max_multiplier_cap": 100.0,
+    "mines_house_edge": 3.0,
+    "mines_bet_fee_percent": 0.0,
+    "mines_winning_tax_percent": 0.0,
+    "mines_gst_percent": 0.0,
+    "mines_daily_win_cap": 500.0,
+    "mines_hourly_limit": 20,
+    "mines_min_account_age_days": 0,
+    "mines_risk_indicator_enabled": True,
+    "mines_sound_enabled": True,
+    "mines_manual_cashout_enabled": True,
+    "mines_auto_cashout_enabled": False,
+    "mines_auto_cashout_default": 0.0,
+    "mines_cashout_confirmation": False,
+    "mines_force_cashout_after": 0,
+    "mines_user_choose_balance_source": True,
+    "mines_allow_main_balance": True,
+    "mines_allow_bonus_balance": True,
+    "mines_allow_referral_balance": True,
+    "mines_allow_gift_balance": True,
+    "mines_show_heatmap": True,
+    "mines_real_time_monitor_enabled": True,
+    "mines_force_win_global": False,
+    "mines_force_loss_global": False,
 }
+
 
 PE = {
     "eyes": "5210956306952758910","smile": "5461117441612462242","zap": "5456140674028019486",
@@ -109,6 +205,22 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode=None)
 DB_PATH = os.environ.get("DB_PATH", "/data/bot_database.db")
 DB_LOCK = threading.Lock()
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+
+def get_public_base_url():
+    url = (os.environ.get("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if url:
+        return url
+    railway_static = (os.environ.get("RAILWAY_STATIC_URL") or "").strip().rstrip("/")
+    if railway_static:
+        if railway_static.startswith("http://") or railway_static.startswith("https://"):
+            return railway_static
+        return "https://" + railway_static.lstrip("/")
+    railway_domain = (os.environ.get("RAILWAY_PUBLIC_DOMAIN") or "").strip().rstrip("/")
+    if railway_domain:
+        if railway_domain.startswith("http://") or railway_domain.startswith("https://"):
+            return railway_domain
+        return "https://" + railway_domain.lstrip("/")
+    return ""
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
@@ -135,7 +247,13 @@ def init_db():
             is_premium INTEGER DEFAULT 0,
             referral_paid INTEGER DEFAULT 0,
             ip_address TEXT DEFAULT '',
-            ip_verified INTEGER DEFAULT 0
+            ip_verified INTEGER DEFAULT 0,
+            bonus_balance REAL DEFAULT 0,
+            referral_earnings REAL DEFAULT 0,
+            last_active_at TEXT DEFAULT '',
+            last_referral_at TEXT DEFAULT '',
+            inactivity_deducted_at TEXT DEFAULT '',
+            total_deductions REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,6 +357,33 @@ def init_db():
             details TEXT DEFAULT '',
             created_at TEXT DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS referral_bonus_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            referred_user_id INTEGER DEFAULT 0,
+            level INTEGER DEFAULT 1,
+            reward REAL DEFAULT 0,
+            reward_mode TEXT DEFAULT 'fixed',
+            created_at TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            activity_type TEXT DEFAULT '',
+            amount REAL DEFAULT 0,
+            meta TEXT DEFAULT '',
+            created_at TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS game_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            game_key TEXT DEFAULT '',
+            bet_amount REAL DEFAULT 0,
+            reward_amount REAL DEFAULT 0,
+            outcome TEXT DEFAULT '',
+            round_meta TEXT DEFAULT '',
+            created_at TEXT DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS redeem_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             platform TEXT DEFAULT '',
@@ -251,6 +396,41 @@ def init_db():
             assigned_to INTEGER DEFAULT 0,
             assigned_at TEXT DEFAULT '',
             note TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS bet_next_rounds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            option_a TEXT DEFAULT '',
+            option_b TEXT DEFAULT '',
+            start_at TEXT DEFAULT '',
+            end_at TEXT DEFAULT '',
+            min_bet REAL DEFAULT 1,
+            max_bet REAL DEFAULT 500,
+            reward_multiplier REAL DEFAULT 1.8,
+            reward_mode TEXT DEFAULT 'multiplier',
+            distribution_method TEXT DEFAULT 'fixed',
+            winning_option TEXT DEFAULT '',
+            status TEXT DEFAULT 'active',
+            gst_percent REAL DEFAULT 0,
+            cooldown_minutes INTEGER DEFAULT 0,
+            auto_reward INTEGER DEFAULT 1,
+            visible INTEGER DEFAULT 1,
+            custom_message TEXT DEFAULT '',
+            created_by INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT '',
+            settled_at TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS bet_next_bets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            round_id INTEGER DEFAULT 0,
+            user_id INTEGER DEFAULT 0,
+            chosen_option TEXT DEFAULT '',
+            amount REAL DEFAULT 0,
+            reward_amount REAL DEFAULT 0,
+            tax_amount REAL DEFAULT 0,
+            status TEXT DEFAULT 'placed',
+            created_at TEXT DEFAULT '',
+            settled_at TEXT DEFAULT '',
+            admin_note TEXT DEFAULT ''
         );
     """)
 
@@ -266,6 +446,31 @@ def init_db():
 
     try:
         c.execute("ALTER TABLE users ADD COLUMN ip_verified INTEGER DEFAULT 0")
+    except:
+        pass
+
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN bonus_balance REAL DEFAULT 0")
+    except:
+        pass
+
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN referral_earnings REAL DEFAULT 0")
+    except:
+        pass
+
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0")
+    except:
+        pass
+
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN gift_balance REAL DEFAULT 0")
+    except:
+        pass
+
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN game_balance REAL DEFAULT 0")
     except:
         pass
     try:
@@ -588,9 +793,9 @@ def create_user(user_id, username, first_name, referred_by=0):
 
     db_execute(
         "INSERT OR IGNORE INTO users "
-        "(user_id, username, first_name, balance, total_earned, referred_by, joined_at, referral_paid, ip_address, ip_verified) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (user_id, username or "", first_name or "User", welcome_bonus, welcome_bonus, referred_by, now, 0, "", 0)
+        "(user_id, username, first_name, balance, total_earned, bonus_balance, referred_by, joined_at, last_active_at, referral_paid, ip_address, ip_verified) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (user_id, username or "", first_name or "User", welcome_bonus, welcome_bonus, welcome_bonus, referred_by, now, now, 0, "", 0)
     )
 
     if referred_by and referred_by != user_id:
@@ -611,55 +816,239 @@ def create_user(user_id, username, first_name, referred_by=0):
 
 
 # 👇 YAHAN YE NAYA FUNCTION ADD KARO
+
+
+def now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def mark_user_active(user_id, activity_type="activity", amount=0, meta=""):
+    ts = now_str()
+    update_user(user_id, last_active_at=ts)
+    db_execute(
+        "INSERT INTO activity_log (user_id, activity_type, amount, meta, created_at) VALUES (?,?,?,?,?)",
+        (int(user_id), activity_type, float(amount or 0), str(meta or "")[:500], ts)
+    )
+
+
+def get_bonus_menu_button_label():
+    title = str(get_setting("bonus_menu_title") or "Bonus").strip() or "Bonus"
+    return f"🎁 {title}"
+
+
+def get_referral_level_chain(user_id):
+    chain = []
+    seen = {int(user_id)}
+    current = get_user(user_id)
+    for _ in range(3):
+        if not current:
+            break
+        parent_id = int(current["referred_by"] or 0)
+        if not parent_id or parent_id in seen:
+            break
+        parent = get_user(parent_id)
+        if not parent:
+            break
+        chain.append(parent)
+        seen.add(parent_id)
+        current = parent
+    return chain
+
+
+def calculate_referral_reward(level, base_amount):
+    mode = str(get_setting("referral_reward_mode") or "fixed").lower()
+    fixed = float(get_setting(f"referral_level_{level}_reward") or 0)
+    percent = float(get_setting(f"referral_level_{level}_percent") or 0)
+    if mode == "percent":
+        return max(0.0, round(float(base_amount or 0) * percent / 100.0, 2))
+    return max(0.0, round(fixed, 2))
+
+
+def get_referral_overview_text():
+    mode = str(get_setting("referral_reward_mode") or "fixed").upper()
+    lines = []
+    for level in (1, 2, 3):
+        enabled = bool(get_setting(f"referral_level_{level}_enabled"))
+        reward = get_setting(f"referral_level_{level}_reward")
+        percent = get_setting(f"referral_level_{level}_percent")
+        label = f"L{level} {'ON' if enabled else 'OFF'}"
+        lines.append(f"{label}: {percent}%" if mode == 'PERCENT' else f"{label}: ₹{float(reward or 0):.2f}")
+    return " | ".join(lines)
+
+
 def process_referral_bonus(user_id):
     user = get_user(user_id)
     if not user:
-        return False
-
-    referred_by = user["referred_by"] or 0
-    referral_paid = user["referral_paid"] or 0
-    ip_verified = user["ip_verified"] or 0
-
-    if int(ip_verified) != 1:
-        return False
-
-    if not referred_by:
-        return False
-
-    if int(referred_by) == int(user_id):
-        return False
-
-    if int(referral_paid) == 1:
-        return False
-
-    referer = get_user(referred_by)
-    if not referer:
-        return False
-
-    per_refer = get_setting("per_refer") or 0
-
-    db_execute(
-        "UPDATE users SET balance=balance+?, total_earned=total_earned+?, referral_count=referral_count+1 WHERE user_id=?",
-        (per_refer, per_refer, referred_by)
-    )
-
-    db_execute(
-        "UPDATE users SET referral_paid=1 WHERE user_id=?",
-        (user_id,)
-    )
-
-    try:
-        safe_send(
-            referred_by,
-            f"{pe('party')} <b>Referral Bonus Claimed!</b>\n\n"
-            f"{pe('check')} Your referred user completed channel join and IP verification.\n"
-            f"{pe('money')} You earned <b>₹{per_refer}</b>\n\n"
-            f"{pe('fire')} Keep sharing to earn more!"
+        return {"ok": False, "message": "User not found"}
+    if not get_setting("referral_system_enabled"):
+        return {"ok": False, "message": "Referral system disabled"}
+    if get_setting("ip_verification_enabled") and get_setting("referral_require_verification") and int(user["ip_verified"] or 0) != 1:
+        return {"ok": False, "message": "IP not verified"}
+    referred_by = int(user["referred_by"] or 0)
+    if not referred_by or referred_by == int(user_id):
+        return {"ok": False, "message": "No valid referrer"}
+    if int(user["referral_paid"] or 0) == 1:
+        return {"ok": False, "message": "Referral already paid"}
+    chain = get_referral_level_chain(user_id)
+    if not chain:
+        return {"ok": False, "message": "No referral chain found"}
+    paid_any = False
+    base_amount = float(get_setting("referral_level_1_reward") or get_setting("per_refer") or 0)
+    ts = now_str()
+    for idx, parent in enumerate(chain, start=1):
+        if not get_setting(f"referral_level_{idx}_enabled"):
+            continue
+        reward = calculate_referral_reward(idx, base_amount)
+        if reward <= 0:
+            continue
+        db_execute(
+            "UPDATE users SET balance=balance+?, bonus_balance=bonus_balance+?, total_earned=total_earned+?, referral_count=referral_count+CASE WHEN ?=1 THEN 1 ELSE 0 END, referral_earnings=referral_earnings+?, last_referral_at=?, last_active_at=? WHERE user_id=?",
+            (reward, reward, reward, idx, reward, ts, ts, int(parent["user_id"]))
         )
-    except:
-        pass
+        db_execute(
+            "INSERT INTO referral_bonus_log (user_id, referred_user_id, level, reward, reward_mode, created_at) VALUES (?,?,?,?,?,?)",
+            (int(parent["user_id"]), int(user_id), idx, reward, str(get_setting("referral_reward_mode") or "fixed"), ts)
+        )
+        try:
+            safe_send(
+                int(parent["user_id"]),
+                f"{pe('party')} <b>Referral Level {idx} Reward Added!</b>\n\n"
+                f"{pe('money')} Amount: <b>₹{reward:.2f}</b>\n"
+                f"{pe('people')} Referred user: <code>{user_id}</code>\n"
+                f"{pe('sparkle')} {get_referral_overview_text()}"
+            )
+        except Exception:
+            pass
+        paid_any = True
+    if paid_any:
+        update_user(user_id, referral_paid=1, last_active_at=ts)
+        mark_user_active(user_id, "referral_verified", 0, "bonus_chain_paid")
+        return {"ok": True, "message": "Referral chain paid"}
+    return {"ok": False, "message": "No active referral level"}
 
-    return True
+
+def get_random_daily_bonus():
+    if not get_setting("daily_bonus_random_enabled"):
+        return round(float(get_setting("daily_bonus") or 0), 2)
+    mn = float(get_setting("daily_bonus_random_min") or 0)
+    mx = float(get_setting("daily_bonus_random_max") or mn)
+    if mx < mn:
+        mn, mx = mx, mn
+    return round(random.uniform(mn, mx), 2)
+
+
+def can_claim_feature(user, feature_type="daily_bonus"):
+    needed = int(get_setting("min_refs_for_daily_bonus") if feature_type == "daily_bonus" else get_setting("min_refs_for_redeem_code") or 0)
+    current = int(user["referral_count"] or 0)
+    if current < needed:
+        return False, f"Need at least {needed} direct referral(s). Current: {current}."
+    return True, "ok"
+
+
+def maybe_apply_inactivity_deduction(user_id):
+    if not get_setting("inactivity_deduction_enabled"):
+        return None
+    user = get_user(user_id)
+    if not user:
+        return None
+    balance = float(user["balance"] or 0)
+    if balance <= 0:
+        return None
+    now = datetime.now()
+    inactivity_days = max(1, int(get_setting("inactivity_days") or 1))
+    last_active_raw = (user["last_active_at"] or user["joined_at"] or "").strip()
+    try:
+        last_active = datetime.strptime(last_active_raw, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+    if now - last_active < timedelta(days=inactivity_days):
+        return None
+    last_deduction_raw = (user["inactivity_deducted_at"] or "").strip()
+    if last_deduction_raw:
+        try:
+            last_deduction = datetime.strptime(last_deduction_raw, "%Y-%m-%d %H:%M:%S")
+            if now - last_deduction < timedelta(days=inactivity_days):
+                return None
+        except Exception:
+            pass
+    if bool(get_setting("inactivity_no_referrals")) and int(user["referral_count"] or 0) > 0:
+        return None
+    percent = max(0.0, float(get_setting("inactivity_deduction_percent") or 0))
+    deduction = round(balance * percent / 100.0, 2)
+    new_balance = max(0.01, round(balance - deduction, 2))
+    actual = round(balance - new_balance, 2)
+    if actual <= 0:
+        return None
+    update_user(user_id, balance=new_balance, total_deductions=round(float(user["total_deductions"] or 0) + actual, 2), inactivity_deducted_at=now_str())
+    return actual
+
+
+def calculate_withdrawal_fees(user, amount, method="upi"):
+    amount = float(amount or 0)
+    bonus_balance = float(user["bonus_balance"] or 0)
+    tax = 0.0
+    gst = 0.0
+    notes = []
+    if get_setting("withdraw_bonus_tax_enabled"):
+        apply = ((method == "upi" and get_setting("withdraw_bonus_tax_apply_on_upi")) or (method == "redeem" and get_setting("withdraw_bonus_tax_apply_on_redeem"))) and bonus_balance >= amount
+        if apply:
+            tax = round(amount * float(get_setting("withdraw_bonus_tax_percent") or 0) / 100.0, 2)
+            notes.append(f"Bonus tax {get_setting('withdraw_bonus_tax_percent')}%")
+    if method == "upi" and get_setting("upi_gst_enabled"):
+        gst = round(amount * float(get_setting("upi_gst_percent") or 0) / 100.0, 2)
+        if gst > 0:
+            notes.append(f"UPI GST {get_setting('upi_gst_percent')}%")
+    return {"requested": round(amount,2), "tax": round(tax,2), "gst": round(gst,2), "total_fee": round(tax+gst,2), "net_amount": round(max(0.0, amount-tax-gst),2), "notes": notes}
+
+
+def get_top_referrers(limit=10):
+    return db_execute("SELECT user_id, first_name, referral_count, referral_earnings FROM users ORDER BY referral_count DESC, referral_earnings DESC, user_id ASC LIMIT ?", (int(limit),), fetch=True) or []
+
+
+def get_user_game_history(user_id, limit=10):
+    return db_execute("SELECT * FROM game_history WHERE user_id=? ORDER BY id DESC LIMIT ?", (int(user_id), int(limit)), fetch=True) or []
+
+
+def can_play_game(user_id, game_key='mines'):
+    if not get_setting('games_enabled'):
+        return False, 'Games are disabled by admin.'
+    if game_key == 'mines' and not get_setting('mines_game_enabled'):
+        return False, 'Mine game is disabled by admin.'
+    cooldown = int(get_setting('mines_cooldown_seconds') or 0)
+    row = db_execute("SELECT created_at FROM game_history WHERE user_id=? AND game_key=? ORDER BY id DESC LIMIT 1", (int(user_id), game_key), fetchone=True)
+    if row and cooldown > 0:
+        try:
+            last_dt = datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S")
+            remaining = cooldown - int((datetime.now() - last_dt).total_seconds())
+            if remaining > 0:
+                return False, f'Wait {remaining}s before next game.'
+        except Exception:
+            pass
+    return True, 'ok'
+
+
+def play_mines_round(user_id, bet_amount):
+    user = get_user(user_id)
+    if not user:
+        return {"ok": False, "message": "User not found."}
+    allowed, reason = can_play_game(user_id, 'mines')
+    if not allowed:
+        return {"ok": False, "message": reason}
+    bet_amount = round(float(bet_amount or 0), 2)
+    min_bet = float(get_setting('mines_min_bet') or 1)
+    max_bet = float(get_setting('mines_max_bet') or bet_amount)
+    if bet_amount < min_bet or bet_amount > max_bet:
+        return {"ok": False, "message": f"Bet must be between ₹{min_bet:.2f} and ₹{max_bet:.2f}."}
+    if float(user['balance'] or 0) < bet_amount:
+        return {"ok": False, "message": 'Insufficient balance.'}
+    force = str(get_setting('mines_force_result') or 'auto').lower()
+    won = True if force == 'win' else False if force == 'lose' else random.randint(1, 100) <= int(get_setting('mines_win_ratio') or 35)
+    reward = round(bet_amount * float(get_setting('mines_reward_multiplier') or 1.8), 2) if won else 0.0
+    reward = min(reward, float(get_setting('mines_max_winnings_per_round') or reward or 0)) if won else 0.0
+    new_balance = round(float(user['balance'] or 0) - bet_amount + reward, 2)
+    update_user(user_id, balance=new_balance, total_earned=round(float(user['total_earned'] or 0) + max(0.0, reward - bet_amount), 2))
+    db_execute("INSERT INTO game_history (user_id, game_key, bet_amount, reward_amount, outcome, round_meta, created_at) VALUES (?,?,?,?,?,?,?)", (int(user_id), 'mines', bet_amount, reward, 'win' if won else 'lose', json.dumps({'ratio': get_setting('mines_win_ratio')}), now_str()))
+    return {"ok": True, "won": won, "bet": bet_amount, "reward": reward, "new_balance": new_balance}
 
 # 👇 FIR YE SAME REHNE DO
 def update_user(user_id, **kwargs):
@@ -676,7 +1065,10 @@ def generate_txn_id():
     return "TXN" + ''.join(random.choices(string.digits, k=10))
 #=================ip verify================
 def send_ip_verify_message(chat_id, user_id):
+    if not get_setting("ip_verification_enabled"):
+        return False
     anticheat.send_ip_verify_message(chat_id, user_id)
+    return True
 
 # ======================== ADMIN MANAGEMENT ========================
 def is_admin(user_id):
@@ -828,7 +1220,7 @@ def get_main_keyboard(user_id=None):
     )
     markup.add(
         types.KeyboardButton("🏧 Withdraw"),
-        types.KeyboardButton("🎁 Gift"),
+        types.KeyboardButton(get_bonus_menu_button_label()),
     )
     markup.add(
         types.KeyboardButton("📋 Tasks"),
@@ -860,6 +1252,10 @@ def get_admin_keyboard():
     )
     markup.add(
         types.KeyboardButton("👮 Admin Manager"),
+        types.KeyboardButton("🧠 Advanced Settings"),
+    )
+    markup.add(
+        types.KeyboardButton("🎮 Game Control"),
         types.KeyboardButton("🔙 User Panel"),
     )
     return markup
@@ -1030,3 +1426,188 @@ TASK_TYPE_EMOJI = {
 
 def get_task_type_emoji(task_type):
     return TASK_TYPE_EMOJI.get(task_type, "⚡")
+
+
+def _parse_dt(value):
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def get_active_betnext_round():
+    return db_execute(
+        "SELECT * FROM bet_next_rounds WHERE status='active' AND visible=1 ORDER BY id DESC LIMIT 1",
+        fetchone=True
+    )
+
+
+def get_betnext_round(round_id):
+    return db_execute("SELECT * FROM bet_next_rounds WHERE id=?", (int(round_id),), fetchone=True)
+
+
+def get_betnext_round_totals(round_id):
+    rows = db_execute(
+        "SELECT chosen_option, SUM(amount) as total, COUNT(*) as cnt FROM bet_next_bets WHERE round_id=? GROUP BY chosen_option",
+        (int(round_id),), fetch=True
+    ) or []
+    totals = {}
+    for r in rows:
+        totals[str(r['chosen_option'])] = {"amount": float(r['total'] or 0), "count": int(r['cnt'] or 0)}
+    return totals
+
+
+def get_user_betnext_history(user_id, limit=10):
+    return db_execute(
+        "SELECT b.*, r.option_a, r.option_b, r.winning_option FROM bet_next_bets b JOIN bet_next_rounds r ON r.id=b.round_id WHERE b.user_id=? ORDER BY b.id DESC LIMIT ?",
+        (int(user_id), int(limit)), fetch=True
+    ) or []
+
+
+def get_betnext_leaderboard(limit=10):
+    return db_execute(
+        "SELECT user_id, SUM(reward_amount) as total_win, COUNT(*) as wins FROM bet_next_bets WHERE status='won' GROUP BY user_id ORDER BY total_win DESC, wins DESC LIMIT ?",
+        (int(limit),), fetch=True
+    ) or []
+
+
+def create_betnext_round(admin_id, option_a, option_b, start_at=None, end_at=None, min_bet=None, max_bet=None, reward_multiplier=None, distribution_method='fixed', auto_reward=True, visible=True, custom_message=''):
+    now = now_str()
+    start_at = start_at or now
+    end_dt = _parse_dt(end_at) if end_at else (datetime.now() + timedelta(hours=1))
+    end_at = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+    db_execute("UPDATE bet_next_rounds SET status='closed', visible=0 WHERE status='active'")
+    rid = db_lastrowid(
+        "INSERT INTO bet_next_rounds (option_a, option_b, start_at, end_at, min_bet, max_bet, reward_multiplier, reward_mode, distribution_method, status, gst_percent, cooldown_minutes, auto_reward, visible, custom_message, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            str(option_a)[:40], str(option_b)[:40], start_at, end_at,
+            float(min_bet if min_bet is not None else get_setting('bet_next_min_bet') or 1),
+            float(max_bet if max_bet is not None else get_setting('bet_next_max_bet') or 500),
+            float(reward_multiplier if reward_multiplier is not None else get_setting('bet_next_default_multiplier') or 1.8),
+            'multiplier', str(distribution_method or 'fixed')[:20], 'active',
+            float(get_setting('bet_next_gst_percent') or 0), int(get_setting('bet_next_cooldown_minutes') or 0),
+            1 if auto_reward else 0, 1 if visible else 0, str(custom_message or '')[:300], int(admin_id), now
+        )
+    )
+    log_admin_action(admin_id, 'betnext_create_round', f'Round {rid}: {option_a} vs {option_b}')
+    return rid
+
+
+def place_betnext_bet(user_id, option_name, amount):
+    user = get_user(user_id)
+    if not user:
+        return {"ok": False, "message": "User not found."}
+    if not get_setting('games_enabled') or not get_setting('bet_next_enabled'):
+        return {"ok": False, "message": "Bet Next is disabled by admin."}
+    round_row = get_active_betnext_round()
+    if not round_row:
+        return {"ok": False, "message": "No active Bet Next round."}
+    now = datetime.now()
+    start_dt = _parse_dt(round_row['start_at']) or now
+    end_dt = _parse_dt(round_row['end_at']) or now
+    if now < start_dt:
+        return {"ok": False, "message": "Betting has not started yet."}
+    if now > end_dt or str(round_row['status']) != 'active':
+        return {"ok": False, "message": "Betting window is closed."}
+    option_name = str(option_name or '').strip()
+    valid_options = {str(round_row['option_a']), str(round_row['option_b'])}
+    if option_name not in valid_options:
+        return {"ok": False, "message": "Invalid option selected."}
+    amount = round(float(amount or 0), 2)
+    min_bet = float(round_row['min_bet'] or get_setting('bet_next_min_bet') or 1)
+    max_bet = float(round_row['max_bet'] or get_setting('bet_next_max_bet') or amount)
+    if amount < min_bet or amount > max_bet:
+        return {"ok": False, "message": f"Bet must be between ₹{min_bet:.2f} and ₹{max_bet:.2f}."}
+    if float(user['balance'] or 0) < amount:
+        return {"ok": False, "message": "Insufficient balance."}
+    daily_limit = int(get_setting('bet_next_daily_user_limit') or 0)
+    if daily_limit > 0:
+        row = db_execute("SELECT COUNT(*) as c FROM bet_next_bets WHERE user_id=? AND created_at LIKE ?", (int(user_id), f"{datetime.now().strftime('%Y-%m-%d')}%"), fetchone=True)
+        if row and int(row['c'] or 0) >= daily_limit:
+            return {"ok": False, "message": "Daily bet limit reached."}
+    existing = db_execute("SELECT id FROM bet_next_bets WHERE round_id=? AND user_id=?", (int(round_row['id']), int(user_id)), fetchone=True)
+    if existing:
+        return {"ok": False, "message": "You already placed a bet in this round."}
+    new_balance = round(float(user['balance'] or 0) - amount, 2)
+    update_user(user_id, balance=new_balance, last_active_at=now_str())
+    db_execute(
+        "INSERT INTO bet_next_bets (round_id, user_id, chosen_option, amount, created_at) VALUES (?,?,?,?,?)",
+        (int(round_row['id']), int(user_id), option_name, amount, now_str())
+    )
+    db_execute(
+        "INSERT INTO game_history (user_id, game_key, bet_amount, reward_amount, outcome, round_meta, created_at) VALUES (?,?,?,?,?,?,?)",
+        (int(user_id), 'bet_next', amount, 0.0, 'placed', json.dumps({'round_id': int(round_row['id']), 'option': option_name}), now_str())
+    )
+    mark_user_active(user_id, 'bet_next_bet', amount, option_name)
+    return {"ok": True, "message": "Bet placed successfully.", "round_id": int(round_row['id']), "new_balance": new_balance}
+
+
+def settle_betnext_round(round_id, winning_option, admin_id=0, custom_message=''):
+    round_row = get_betnext_round(round_id)
+    if not round_row:
+        return {"ok": False, "message": "Round not found."}
+    if str(round_row['status']) in ['settled', 'cancelled']:
+        return {"ok": False, "message": "Round already finished."}
+    winning_option = str(winning_option or '').strip()
+    if winning_option not in {str(round_row['option_a']), str(round_row['option_b'])}:
+        return {"ok": False, "message": "Winner must match one of the round options."}
+    bets = db_execute("SELECT * FROM bet_next_bets WHERE round_id=?", (int(round_id),), fetch=True) or []
+    multiplier = float(round_row['reward_multiplier'] or 1.8)
+    gst_percent = float(round_row['gst_percent'] or 0)
+    winners = 0
+    paid_total = 0.0
+    now = now_str()
+    for bet in bets:
+        won = str(bet['chosen_option']) == winning_option
+        reward = 0.0
+        tax = 0.0
+        status = 'lost'
+        if won:
+            gross = round(float(bet['amount'] or 0) * multiplier, 2)
+            profit = max(0.0, gross - float(bet['amount'] or 0))
+            tax = round(profit * gst_percent / 100.0, 2) if get_setting('bet_next_gst_enabled') else 0.0
+            reward = round(gross - tax, 2)
+            user = get_user(int(bet['user_id']))
+            if user:
+                update_user(
+                    int(bet['user_id']),
+                    balance=round(float(user['balance'] or 0) + reward, 2),
+                    total_earned=round(float(user['total_earned'] or 0) + max(0.0, reward - float(bet['amount'] or 0)), 2),
+                    last_active_at=now
+                )
+            status = 'won'
+            winners += 1
+            paid_total += reward
+        db_execute("UPDATE bet_next_bets SET reward_amount=?, tax_amount=?, status=?, settled_at=?, admin_note=? WHERE id=?", (reward, tax, status, now, str(custom_message or '')[:250], int(bet['id'])))
+        db_execute("UPDATE game_history SET reward_amount=?, outcome=?, round_meta=? WHERE user_id=? AND game_key='bet_next' AND created_at=(SELECT MAX(created_at) FROM game_history WHERE user_id=? AND game_key='bet_next')", (reward, status, json.dumps({'round_id': int(round_id), 'winner': winning_option}), int(bet['user_id']), int(bet['user_id'])))
+        try:
+            if won:
+                safe_send(int(bet['user_id']), f"{pe('party')} <b>Bet Next Win!</b>\n\nWinner: <b>{winning_option}</b>\nReward: <b>₹{reward:.2f}</b>\nTax: ₹{tax:.2f}")
+            else:
+                safe_send(int(bet['user_id']), f"{pe('info')} <b>Bet Next Result</b>\n\nWinner: <b>{winning_option}</b>\nYour option: <b>{bet['chosen_option']}</b>\nBetter luck next round.")
+        except Exception:
+            pass
+    db_execute("UPDATE bet_next_rounds SET winning_option=?, status='settled', settled_at=?, custom_message=? WHERE id=?", (winning_option, now, str(custom_message or round_row['custom_message'] or '')[:300], int(round_id)))
+    log_admin_action(admin_id or ADMIN_ID, 'betnext_settle_round', f'Round {round_id} winner {winning_option}; winners={winners}; paid={paid_total}')
+    return {"ok": True, "message": "Round settled.", "winners": winners, "paid_total": round(paid_total,2)}
+
+
+def cancel_betnext_round(round_id, admin_id=0, reason=''):
+    round_row = get_betnext_round(round_id)
+    if not round_row:
+        return {"ok": False, "message": "Round not found."}
+    if str(round_row['status']) in ['settled', 'cancelled']:
+        return {"ok": False, "message": "Round already finished."}
+    bets = db_execute("SELECT * FROM bet_next_bets WHERE round_id=?", (int(round_id),), fetch=True) or []
+    now = now_str()
+    refunded = 0.0
+    for bet in bets:
+        user = get_user(int(bet['user_id']))
+        if user:
+            refund = round(float(bet['amount'] or 0), 2)
+            update_user(int(bet['user_id']), balance=round(float(user['balance'] or 0) + refund, 2), last_active_at=now)
+            refunded += refund
+        db_execute("UPDATE bet_next_bets SET status='refunded', reward_amount=?, settled_at=?, admin_note=? WHERE id=?", (float(bet['amount'] or 0), now, str(reason or 'Round cancelled')[:250], int(bet['id'])))
+    db_execute("UPDATE bet_next_rounds SET status='cancelled', settled_at=?, custom_message=? WHERE id=?", (now, str(reason or 'Round cancelled')[:300], int(round_id)))
+    log_admin_action(admin_id or ADMIN_ID, 'betnext_cancel_round', f'Round {round_id} refunded={refunded}')
+    return {"ok": True, "message": "Round cancelled and refunded.", "refunded": round(refunded,2)}
